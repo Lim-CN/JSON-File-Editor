@@ -49,23 +49,21 @@
                 <label for="json-file" class="block text-sm font-medium text-gray-700 mb-1">选择 JSON 文件</label>
                 <div class="flex items-center gap-4 flex-wrap">
                     <input type="file" id="json-file" accept=".json" class="block w-full md:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
-                    <button id="edit-btn" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm font-medium transition-colors" disabled>编辑</button>
-                    <button id="save-btn" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm font-medium transition-colors hidden">保存</button>
-                    <button id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium transition-colors hidden">取消</button>
-                    <button id="download-btn" class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 text-sm font-medium transition-colors hidden">下载</button>
-                    <button id="download-unicode-btn" class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm font-medium transition-colors hidden">下载为unicode</button>
+                    <button id="preview-btn" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm font-medium transition-colors">预览</button>
+                    <button id="download-btn" class="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 text-sm font-medium transition-colors">下载</button>
+                    <button id="download-unicode-btn" class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm font-medium transition-colors">下载为unicode</button>
                     <button id="clear-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium transition-colors">清空</button>
                 </div>
             </div>
             
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                    <span id="view-mode-label">预览</span>
-                    <span id="edit-mode-label" class="hidden">编辑</span>
+                    <span id="edit-mode-label">编辑</span>
+                    <span id="view-mode-label" class="hidden">预览</span>
                 </label>
                 <div id="file-info" class="text-sm text-gray-500 mb-2"></div>
-                <div id="json-display" class="json-display border border-gray-200"></div>
-                <textarea id="json-editor" class="w-full h-96 p-4 border border-gray-200 rounded-md bg-white font-mono text-sm hidden"></textarea>
+                <textarea id="json-editor" class="w-full h-96 p-4 border border-gray-200 rounded-md bg-white font-mono text-sm" placeholder="在此输入或编辑 JSON..."></textarea>
+                <div id="json-display" class="json-display border border-gray-200 hidden"></div>
                 <div id="json-error" class="text-red-500 text-sm mt-2 hidden"></div>
             </div>
         </div>
@@ -73,13 +71,13 @@
         <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4">使用说明</h2>
             <ul class="list-disc list-inside text-gray-600 space-y-2">
-                <li>点击 "选择文件" 按钮，选择你想要上传的 JSON 文件</li>
-                <li>文件将自动解析并在下方展示格式化后的 JSON 内容</li>
-                <li>点击 "编辑" 按钮进入编辑模式，修改 JSON 内容</li>
-                <li>在编辑模式下，可以点击 "保存" 保存修改，或点击 "取消" 放弃修改</li>
+                <li>直接在文本框中输入或编辑 JSON 内容，无需先上传文件</li>
+                <li>点击 "选择文件" 按钮，可以上传 JSON 文件，文件内容将自动填入文本框</li>
+                <li>点击 "预览" 按钮，可以查看格式化并带有语法高亮的 JSON 内容</li>
+                <li>在预览模式下，点击 "编辑" 按钮返回编辑模式</li>
                 <li>点击 "下载" 按钮可以下载当前 JSON 文件</li>
                 <li>点击 "下载为unicode" 按钮可以将 JSON 内容转换为 Unicode 编码后下载</li>
-                <li>可以使用 "清空" 按钮清除当前展示的内容</li>
+                <li>可以使用 "清空" 按钮清除当前所有内容</li>
                 <li>支持所有标准 JSON 格式文件</li>
             </ul>
         </div>
@@ -93,9 +91,7 @@
             const jsonError = document.getElementById('json-error');
             const fileInfo = document.getElementById('file-info');
             const clearBtn = document.getElementById('clear-btn');
-            const editBtn = document.getElementById('edit-btn');
-            const saveBtn = document.getElementById('save-btn');
-            const cancelBtn = document.getElementById('cancel-btn');
+            const previewBtn = document.getElementById('preview-btn');
             const downloadBtn = document.getElementById('download-btn');
             const downloadUnicodeBtn = document.getElementById('download-unicode-btn');
             const viewModeLabel = document.getElementById('view-mode-label');
@@ -103,6 +99,7 @@
             
             let currentJson = null;
             let currentFileName = '';
+            let isPreviewMode = false;
             
             // 格式化 JSON 并添加语法高亮
             function formatJson(jsonObj) {
@@ -110,79 +107,57 @@
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;')
-                    // .replace(/"(\w+)"\s*:/g, '<span class="json-key">"$1"</span>:')
+                    .replace(/"(\w+)"\s*:/g, '<span class="json-key">"$1"</span>:')
                     .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, '<span class="json-string">"$1"</span>')
                     .replace(/\b(\d+)\b/g, '<span class="json-number">$1</span>')
                     .replace(/\b(true|false)\b/g, '<span class="json-boolean">$1</span>')
                     .replace(/\b(null)\b/g, '<span class="json-null">$1</span>');
             }
             
-            // 更新显示
-            function updateDisplay(jsonObj) {
-                currentJson = jsonObj;
-                const formattedJson = formatJson(jsonObj);
-                jsonDisplay.innerHTML = `<pre>${formattedJson}</pre>`;
-            }
-            
-            // 切换到编辑模式
-            function switchToEditMode() {
-                if (!currentJson) return;
+            // 切换到预览模式
+            function switchToPreviewMode() {
+                const editorContent = jsonEditor.value.trim();
                 
-                // 填充编辑器内容
-                jsonEditor.value = JSON.stringify(currentJson, null, 2);
-                
-                // 切换显示
-                jsonDisplay.classList.add('hidden');
-                jsonEditor.classList.remove('hidden');
-                jsonError.classList.add('hidden');
-                
-                // 切换按钮状态
-                editBtn.classList.add('hidden');
-                saveBtn.classList.remove('hidden');
-                cancelBtn.classList.remove('hidden');
-                downloadBtn.classList.add('hidden');
-                downloadUnicodeBtn.classList.add('hidden');
-                clearBtn.classList.add('hidden');
-                fileInput.disabled = true;
-                
-                // 切换标签
-                viewModeLabel.classList.add('hidden');
-                editModeLabel.classList.remove('hidden');
-            }
-            
-            // 切换到查看模式
-            function switchToViewMode() {
-                // 切换显示
-                jsonDisplay.classList.remove('hidden');
-                jsonEditor.classList.add('hidden');
-                jsonError.classList.add('hidden');
-                
-                // 切换按钮状态
-                editBtn.classList.remove('hidden');
-                saveBtn.classList.add('hidden');
-                cancelBtn.classList.add('hidden');
-                downloadBtn.classList.remove('hidden');
-                downloadUnicodeBtn.classList.remove('hidden');
-                clearBtn.classList.remove('hidden');
-                fileInput.disabled = false;
-                
-                // 切换标签
-                viewModeLabel.classList.remove('hidden');
-                editModeLabel.classList.add('hidden');
-            }
-            
-            // 保存编辑
-            function saveEdit() {
-                const editorContent = jsonEditor.value;
+                if (!editorContent) {
+                    jsonError.textContent = 'JSON 内容不能为空';
+                    jsonError.classList.remove('hidden');
+                    return;
+                }
                 
                 try {
                     const parsedJson = JSON.parse(editorContent);
-                    updateDisplay(parsedJson);
-                    switchToViewMode();
+                    currentJson = parsedJson;
+                    
+                    // 格式化并显示
+                    const formattedJson = formatJson(parsedJson);
+                    jsonDisplay.innerHTML = `<pre>${formattedJson}</pre>`;
+                    
+                    // 切换显示
+                    jsonEditor.classList.add('hidden');
+                    jsonDisplay.classList.remove('hidden');
+                    jsonError.classList.add('hidden');
+                    
+                    // 切换按钮和标签
+                    previewBtn.textContent = '编辑';
+                    editModeLabel.classList.add('hidden');
+                    viewModeLabel.classList.remove('hidden');
+                    isPreviewMode = true;
                 } catch (error) {
                     jsonError.textContent = `JSON 解析错误: ${error.message}`;
                     jsonError.classList.remove('hidden');
                 }
+            }
+            
+            // 切换到编辑模式
+            function switchToEditMode() {
+                jsonEditor.classList.remove('hidden');
+                jsonDisplay.classList.add('hidden');
+                jsonError.classList.add('hidden');
+                
+                previewBtn.textContent = '预览';
+                viewModeLabel.classList.add('hidden');
+                editModeLabel.classList.remove('hidden');
+                isPreviewMode = false;
             }
             
             // 将字符串转换为Unicode编码
@@ -192,11 +167,33 @@
                 });
             }
             
+            // 获取当前 JSON 对象
+            function getCurrentJson() {
+                if (isPreviewMode && currentJson) {
+                    return currentJson;
+                }
+                
+                const editorContent = jsonEditor.value.trim();
+                if (!editorContent) return null;
+                
+                try {
+                    return JSON.parse(editorContent);
+                } catch (error) {
+                    jsonError.textContent = `JSON 解析错误: ${error.message}`;
+                    jsonError.classList.remove('hidden');
+                    return null;
+                }
+            }
+            
             // 下载 JSON 文件
             function downloadJson() {
-                if (!currentJson) return;
+                const jsonToDownload = getCurrentJson();
+                if (!jsonToDownload) {
+                    alert('请先输入有效的 JSON 内容');
+                    return;
+                }
                 
-                const dataStr = JSON.stringify(currentJson, null, 2);
+                const dataStr = JSON.stringify(jsonToDownload, null, 2);
                 const dataBlob = new Blob([dataStr], { type: 'application/json' });
                 const url = URL.createObjectURL(dataBlob);
                 const link = document.createElement('a');
@@ -208,15 +205,19 @@
             
             // 下载为 Unicode
             function downloadUnicodeJson() {
-                if (!currentJson) return;
+                const jsonToDownload = getCurrentJson();
+                if (!jsonToDownload) {
+                    alert('请先输入有效的 JSON 内容');
+                    return;
+                }
                 
-                const dataStr = JSON.stringify(currentJson, null, 2);
+                const dataStr = JSON.stringify(jsonToDownload, null, 2);
                 const unicodeStr = stringToUnicode(dataStr);
                 const dataBlob = new Blob([unicodeStr], { type: 'application/json' });
                 const url = URL.createObjectURL(dataBlob);
                 const link = document.createElement('a');
                 const baseName = currentFileName || 'edited';
-                const fileName = baseName.replace('.json', '') + '.json';
+                const fileName = baseName.replace('.json', '') + '_unicode.json';
                 link.href = url;
                 link.download = fileName;
                 link.click();
@@ -244,17 +245,16 @@
                 reader.onload = function(e) {
                     try {
                         const jsonObj = JSON.parse(e.target.result);
-                        updateDisplay(jsonObj);
+                        jsonEditor.value = JSON.stringify(jsonObj, null, 2);
+                        currentJson = jsonObj;
                         
-                        // 启用编辑按钮
-                        editBtn.disabled = false;
-                        downloadBtn.classList.remove('hidden');
-                        downloadUnicodeBtn.classList.remove('hidden');
+                        // 确保在编辑模式
+                        if (isPreviewMode) {
+                            switchToEditMode();
+                        }
                     } catch (error) {
-                        jsonDisplay.innerHTML = `<div class="text-red-500 font-medium">JSON 解析错误: ${error.message}</div>`;
-                        editBtn.disabled = true;
-                        downloadBtn.classList.add('hidden');
-                        downloadUnicodeBtn.classList.add('hidden');
+                        jsonError.textContent = `JSON 解析错误: ${error.message}`;
+                        jsonError.classList.remove('hidden');
                     }
                 };
                 reader.readAsText(file);
@@ -270,20 +270,20 @@
                 currentJson = null;
                 currentFileName = '';
                 
-                // 禁用按钮
-                editBtn.disabled = true;
-                downloadBtn.classList.add('hidden');
-                downloadUnicodeBtn.classList.add('hidden');
+                // 确保在编辑模式
+                if (isPreviewMode) {
+                    switchToEditMode();
+                }
             });
             
-            // 编辑按钮点击事件
-            editBtn.addEventListener('click', switchToEditMode);
-            
-            // 保存按钮点击事件
-            saveBtn.addEventListener('click', saveEdit);
-            
-            // 取消按钮点击事件
-            cancelBtn.addEventListener('click', switchToViewMode);
+            // 预览/编辑按钮点击事件
+            previewBtn.addEventListener('click', function() {
+                if (isPreviewMode) {
+                    switchToEditMode();
+                } else {
+                    switchToPreviewMode();
+                }
+            });
             
             // 下载按钮点击事件
             downloadBtn.addEventListener('click', downloadJson);
